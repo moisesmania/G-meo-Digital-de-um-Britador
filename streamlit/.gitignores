@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+
+# Streamlit
+.streamlit/
+
+# Docker
+*.log
+
+# Node-RED
+node-red-data/
+
+# OS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# Crates / DB dumps
+*.db
+*.sqlite
+
+# Env
+.env
+
