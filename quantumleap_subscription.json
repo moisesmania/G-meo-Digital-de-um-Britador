@@ -1,0 +1,34 @@
+{
+  "description": "Subscription Crusher:001 → QuantumLeap (histórico temporal)",
+  "subject": {
+    "entities": [
+      {
+        "id": "Crusher:001",
+        "type": "Crusher"
+      }
+    ],
+    "condition": {
+      "attrs": [
+        "temperature",
+        "vibration",
+        "current",
+        "production",
+        "status"
+      ]
+    }
+  },
+  "notification": {
+    "http": {
+      "url": "http://quantumleap:8668/v2/notify"
+    },
+    "attrs": [
+      "temperature",
+      "vibration",
+      "current",
+      "production",
+      "status"
+    ],
+    "metadata": ["dateModified", "TimeInstant"]
+  },
+  "throttling": 0
+}

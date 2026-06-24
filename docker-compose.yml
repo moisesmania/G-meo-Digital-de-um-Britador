@@ -1,0 +1,186 @@
+services:
+
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    container_name: mosquitto
+    restart: unless-stopped
+
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_log:/mosquitto/log
+
+    networks:
+      - iot-net
+
+
+  mongodb:
+    image: mongo:4.4
+    container_name: mongodb
+    restart: unless-stopped
+
+    ports:
+      - "27017:27017"
+
+    volumes:
+      - mongodb_data:/data/db
+
+    command: ["--bind_ip_all"]
+
+    networks:
+      - iot-net
+
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.runCommand({ ping: 1 })"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+
+  orion:
+    image: fiware/orion:3.7.0
+    container_name: orion
+    restart: unless-stopped
+
+    depends_on:
+      mongodb:
+        condition: service_started
+
+    ports:
+      - "1026:1026"
+
+    command: -dbhost mongodb -logLevel DEBUG
+
+    networks:
+      - iot-net
+
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:1026/version || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+
+  cratedb:
+    image: crate:4.8.4
+    container_name: cratedb
+    restart: unless-stopped
+
+    ports:
+      - "4200:4200"
+      - "5432:5432"
+
+    environment:
+      - CRATE_HEAP_SIZE=512m
+
+    command: >
+      crate
+      -Cnetwork.host=0.0.0.0
+      -Cdiscovery.type=single-node
+
+    networks:
+      - iot-net
+
+
+  quantumleap:
+    image: orchestracities/quantumleap:0.8.3
+    container_name: quantumleap
+    restart: unless-stopped
+
+    depends_on:
+      - orion
+      - cratedb
+
+    ports:
+      - "8668:8668"
+
+    environment:
+      - CRATE_HOST=cratedb
+      - CRATE_PORT=4200
+      - LOGLEVEL=DEBUG
+
+    networks:
+      - iot-net
+
+
+  nodered:
+    image: nodered/node-red:3.1.9
+    container_name: nodered
+    restart: unless-stopped
+
+    depends_on:
+      - orion
+
+    ports:
+      - "1880:1880"
+
+    networks:
+      - iot-net
+
+
+  publisher:
+    build:
+      context: ./publisher
+    container_name: publisher
+    restart: unless-stopped
+    depends_on:
+      - orion
+    networks:
+      - iot-net
+
+
+  streamlit:
+    build:
+      context: ./streamlit
+    container_name: streamlit
+    restart: unless-stopped
+
+    depends_on:
+      - orion
+      - quantumleap
+
+    ports:
+      - "8501:8501"
+
+    environment:
+      - ORION_URL=http://orion:1026
+      - QUANTUMLEAP_URL=http://quantumleap:8668
+
+    networks:
+      - iot-net
+
+
+  init:
+    image: curlimages/curl:8.5.0
+    container_name: init
+    restart: "no"
+
+    depends_on:
+      - orion
+      - quantumleap
+
+    volumes:
+      - ./init.sh:/scripts/init.sh
+      - ./quantumleap_subscription.json:/subscriptions/quantumleap_subscription.json
+
+    entrypoint: ["/bin/sh", "/scripts/init.sh"]
+
+    networks:
+      - iot-net
+
+
+volumes:
+  mosquitto_data:
+  mosquitto_log:
+  mongodb_data:
+
+
+networks:
+  iot-net:
+    driver: bridge
